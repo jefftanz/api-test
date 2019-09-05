@@ -36,9 +36,18 @@ router.get('/', function(req, res) {
 	res.json({ message: 'hooray! welcome to our api!' });	
 });
 
-router.get('/test', function(req, res) {
-	res.json({ message: 'test route' });
-	stepOne(RELEASE_ID);
+var params = {
+	'xApiToken': '1243fea9ebe3527f5ee7609c0ebee920953b10cb',
+	'orgName': 'Jeff_Org1',
+	'appName': 'app3',
+	'displayName': 'app3',
+	'os': 'Android',
+	'src': '/Users/jeffrey.tansey/repos/playground/ionic/ionic3/jeff_org1_app1_004.apk'
+}
+
+router.get('/upload', function(req, res) {
+	res.json({ message: 'upload route' });
+	upload(params);
 });
 
 router.get('/step3', function(req, res) {
@@ -55,25 +64,110 @@ app.listen(port);
 console.log('Magic happens on port ' + port);
 
 // Global Variables
-var X_API_TOKEN = '1243fea9ebe3527f5ee7609c0ebee920953b10cb';
+// var X_API_TOKEN = '1243fea9ebe3527f5ee7609c0ebee920953b10cb';
 // TODO pass Organization Name and App Name parameters into function? Or Hardcoded globals?
-var ORG_NAME = 'Jeff_Org1';
-var APP_NAME = 'app1';
-var RELEASE_ID = '3'; // Manually increment for testing?
-var FILE_LOCATION = '/Users/jeffrey.tansey/repos/playground/ionic/ionic3/jeff_org1_app1_003.apk';
+// var APP_NAME = 'app1';
+// var RELEASE_ID = '3'; // Manually increment for testing?
+// var FILE_LOCATION = '/Users/jeffrey.tansey/repos/playground/ionic/ionic3/jeff_org1_app1_003.apk';
 
-// Step One of AppCenter Release process
-var stepOne = function() {
-	console.log('stepOne');
+// var upload = function (params) {
+// 	if (appExists(params.appName)){
+// 		stepOne(params);
+// 	} else {
+// 		createNewApp(params);
+// 	}
+// }
+
+var upload = function (params) {
 
 	var headers = {
 		'Content-Type': 'application/json',
 		'Accept': 'application/json',
-		'X-API-Token': X_API_TOKEN
+		'X-API-Token': params.xApiToken
 	}
 	
 	var options = {
-		url: "https://api.appcenter.ms/v0.1/apps/"+ORG_NAME+"/"+APP_NAME+"/release_uploads",
+		url: "https://api.appcenter.ms/v0.1/orgs/"+params.orgName+"/apps",
+		headers: headers,
+		rejectUnauthorized: false,
+	}
+
+	request.get(options, function (err, httpResponse, body) {
+		var appExists = false;
+		var myObject = JSON.parse(body);
+		if (!err && httpResponse.statusCode == 200) {
+			console.log('statusCode: ' + httpResponse.statusCode);
+			for (var i = 0; i < body.length; i++){
+				if (myObject[i].name == params.appName){
+					appExists = true;
+					break;
+				}
+			}
+
+			if (appExists){
+				stepOne(params);
+			} else {
+				// Write to logs and say that we could not find this application, going to create it. 
+				createNewApp(params);
+			}
+
+		} else {
+			console.log('error: ' + err);
+			console.log('statusCode: ' + httpResponse.statusCode);
+			// Send an error Message via Email
+		}
+	});
+
+}
+
+var createNewApp = function (params) {
+
+	var headers = {
+		'Content-Type': 'application/json',
+		'Accept': 'application/json',
+		'X-API-Token': params.xApiToken
+	}
+	
+	var options = {
+		url: "https://api.appcenter.ms/v0.1/orgs/"+params.orgName+"/apps",
+		headers: headers,
+		rejectUnauthorized: false,
+		json: true,
+		body:	{
+			"description": "description",
+			"release_type": "Beta",
+			"display_name": params.displayName,
+			"name": params.appName,
+			"os": params.os,
+			"platform": "Cordova"
+		}
+	}
+
+	request.post(options, function (err, httpResponse, body) {
+
+		if (!err && (httpResponse.statusCode == 201 || httpResponse.statusCode == 200)) {
+			console.log('statusCode: ' + httpResponse.statusCode);
+			stepOne(params);
+		} else {
+			console.log('error: ' + err);
+			console.log('statusCode: ' + httpResponse.statusCode);
+			// Send an error Message via Email
+		}
+	});
+
+}
+
+// Step One of AppCenter Release process
+var stepOne = function(params) {
+
+	var headers = {
+		'Content-Type': 'application/json',
+		'Accept': 'application/json',
+		'X-API-Token': params.xApiToken
+	}
+	
+	var options = {
+		url: "https://api.appcenter.ms/v0.1/apps/"+params.orgName+"/"+params.appName+"/release_uploads",
 		headers: headers,
 		rejectUnauthorized: false
 	}
@@ -81,13 +175,8 @@ var stepOne = function() {
 	request.post(options, function (err, httpResponse, body) {
 		if (!err && (httpResponse.statusCode == 200 || httpResponse.statusCode == 201)) {
 			console.log('statusCode: ' + httpResponse.statusCode);
-			console.log('body: ' + body);
-			
 			var myObject = JSON.parse(body);
-			console.log(myObject);
-			console.log('myObject.upload_url: ' + myObject.upload_url);
-
-			stepTwo(myObject.upload_id, myObject.upload_url);
+			stepTwo(params, myObject.upload_id, myObject.upload_url);
 		} else {
 			console.log('error: ' + err);
 			console.log('statusCode: ' + httpResponse.statusCode);
@@ -97,22 +186,18 @@ var stepOne = function() {
 }
 
 // Step Two of AppCenter Release process
-var stepTwo = function (uploadId, uploadUrl) {
-	console.log('stepTwo');
+var stepTwo = function (params, uploadId, uploadUrl) {
 
 	var headers = {
 		'Content-Type': 'multipart/form-data',
 	}
 
-	console.log('uploadUrl: ' + uploadUrl);
-	
-	// TODO need File Source Location parameter
 	var options = {
 		url: uploadUrl,
 		headers: headers,
 		rejectUnauthorized: false,
 		formData: {
-			ipa: fs.createReadStream(FILE_LOCATION)
+			ipa: fs.createReadStream(params.src)
 		}
 	}
 
@@ -120,7 +205,7 @@ var stepTwo = function (uploadId, uploadUrl) {
 		if (!err && httpResponse.statusCode == 204) {
 			console.log('statusCode: ' + httpResponse.statusCode);
 			console.log('body: ' + body);
-			stepThree(uploadId);
+			stepThree(params, uploadId);
 		} else {
 			console.log('error: ' + err);
 			console.log('statusCode: ' + httpResponse.statusCode);
@@ -131,19 +216,16 @@ var stepTwo = function (uploadId, uploadUrl) {
 }
 
 // Step Three of AppCenter Release process
-var stepThree = function (uploadId) {
-	console.log('stepThree');
-	console.log('uploadId: ' + uploadId);
+var stepThree = function (params, uploadId) {
 
 	var headers = {
 		'Content-Type': 'application/json',
 		'Accept': 'application/json',
-		'X-API-Token': X_API_TOKEN
+		'X-API-Token': params.xApiToken
 	}
 	
-	// TODO need File Source Location parameter
 	var options = {
-		url: "https://api.appcenter.ms/v0.1/apps/"+ORG_NAME+"/"+APP_NAME+"/release_uploads/"+uploadId,
+		url: "https://api.appcenter.ms/v0.1/apps/"+params.orgName+"/"+params.appName+"/release_uploads/"+uploadId,
 		headers: headers,
 		rejectUnauthorized: false,
 		json: true,
@@ -153,19 +235,9 @@ var stepThree = function (uploadId) {
 	}
 
 	request.patch(options, function (err, httpResponse, bodyResponse) {
-		console.log('after request.patch');
-
 		if (!err && httpResponse.statusCode == 200) {
 			console.log('statusCode: ' + httpResponse.statusCode);
-
-			console.log('bodyResponse: ' + bodyResponse);
-			console.log('bodyResponse.release_id: ' + bodyResponse.release_id);
-			// var myObject2 = JSON.stringify(bodyResponse);
-			// var myObject2 = JSON.parse(bodyResponse);
-			// console.log('myObject: ' + myObject2);
-			// console.log('myObject.release_id: ' + myObject2.release_id);
-
-			stepFour(bodyResponse.release_id);
+			stepFour(params, bodyResponse.release_id);
 		} else {
 			console.log('error: ' + err);
 			console.log('statusCode: ' + httpResponse.statusCode);
@@ -176,17 +248,16 @@ var stepThree = function (uploadId) {
 }
 
 // Step Four of AppCenter Release process
-var stepFour = function (releaseId) {
-	console.log('stepFour');
+var stepFour = function (params, releaseId) {
 
 	var headers = {
 		'Content-Type': 'application/json',
 		'Accept': 'application/json',
-		'X-API-Token': X_API_TOKEN
+		'X-API-Token': params.xApiToken
 	} 
 	
 	var options = {
-		url: "https://api.appcenter.ms/v0.1/apps/"+ORG_NAME+"/"+APP_NAME+"/releases/"+releaseId,
+		url: "https://api.appcenter.ms/v0.1/apps/"+params.orgName+"/"+params.appName+"/releases/"+releaseId,
 		headers: headers,
 		rejectUnauthorized: false,
 		json: true,
@@ -198,8 +269,6 @@ var stepFour = function (releaseId) {
 	}
 
 	request.patch(options, function (err, httpResponse, body) {
-		console.log('after request.patch');
-
 		if (!err && httpResponse.statusCode == 200) {
 			console.log('statusCode: ' + httpResponse.statusCode);
 			console.log('body: ' + body);
