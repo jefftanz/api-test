@@ -8,6 +8,7 @@ var app        = express();
 var morgan     = require('morgan');
 var request = require('request');
 var fs = require('fs');
+var Q = require("q");
 
 // configure app
 app.use(morgan('dev')); // log requests to the console
@@ -36,9 +37,113 @@ router.get('/', function(req, res) {
 	res.json({ message: 'hooray! welcome to our api!' });	
 });
 
-var params2 = {
-	xApiToken: '[TOKEN_HERE]',
-	orgName: '[ORG_NAME_HERE]'
+
+// HockeyApp Stuff
+
+var hockeyParams = {
+	xApiToken: '[HOCKEY_API_TOKEN]'
+}
+
+// Get List of all HockeyApp Apps for my account
+router.get('/deleteHockeyApps', function (req, res){
+
+	var headers = {
+		'Content-Type': 'application/json',
+		'Accept': 'application/json',
+		'X-HockeyAppToken': hockeyParams.xApiToken
+	}
+
+	var options = {
+		url: "http://rink.hockeyapp.net/api/2/apps/",
+		headers: headers,
+		rejectUnauthorized: false
+	}
+
+	request.get(options, function (err, httpResponse, body) {
+
+		if (!err && httpResponse.statusCode == 200) {
+
+			//console.log('body: ' + body);
+
+			var value = JSON.parse(body);
+			console.log('Number of Apps: ' + value.apps.length);
+
+			deleteAllApps(value.apps);
+
+		} else {
+			if (err == undefined || err == null){
+				var errObj = JSON.parse(body);
+				console.log('error: ' + errObj.code + ' ' + errObj.message); 
+			} else {
+				console.log('error: ' + err);
+			}
+		}
+
+	});
+
+});
+
+var deleteAllApps = function (hockeyApps) {
+
+	//var appTitle = hockeyApps[1].title;
+	//console.log('trying to delete ' + appTitle);
+
+	var listOfRequests = [];
+
+	for (var i = 0; i < hockeyApps.length; i++){
+
+		var appId = hockeyApps[i].public_identifier;
+
+		var headers = {
+			'Content-Type': 'application/json',
+			'Accept': 'application/json',
+			'X-HockeyAppToken': hockeyParams.xApiToken
+		}
+
+		var options = {
+			url: "https://rink.hockeyapp.net/api/2/apps/" + appId,
+			headers: headers,
+			rejectUnauthorized: false
+		}
+
+		var deleteRequest = request.delete(options, function (err, httpResponse, body) {
+
+			if (!err && httpResponse.statusCode == 200) {
+	
+				console.log(httpResponse.statusCode + ' ' + httpResponse.statusMessage + ' ' + 'delete successful: ' + body);
+	
+			} else {
+				
+				console.log(httpResponse.statusCode + ' ' + httpResponse.statusMessage + ' ' + 'delete failed: ' + body);
+	
+				// if (err == undefined || err == null){
+				// 	var errObj = JSON.parse(body);
+				// 	console.log('error: ' + errObj.code + ' ' + errObj.message); 
+				// } else {
+				// 	console.log('error: ' + err);
+				// }
+
+			}
+	
+		});
+
+		listOfRequests.push(deleteRequest);
+	}
+
+	return Q.all(listOfRequests);
+
+// 	return Q.all([
+//     eventualAdd(2, 2),
+//     eventualAdd(10, 20)
+// ]);
+
+}
+
+// App Center Stuff
+
+var appCenterParams = {
+	xApiToken: '[APP_CENTER_API_TOKEN]',
+	orgName: '[APP_CENTER_ORG_NAME]'
 }
 
 // Test getting all OrgApps
@@ -55,11 +160,11 @@ var getOrgAppsV2 = function () {
 	var headers = {
 		'Content-Type': 'application/json',
 		'Accept': 'application/json',
-		'X-API-Token': params2.xApiToken
+		'X-API-Token': appCenterParams.xApiToken
 	}
 	
 	var options = {
-		url: "https://api.appcenter.ms/v0.1/orgs/"+params2.orgName+"/apps",
+		url: "https://api.appcenter.ms/v0.1/orgs/"+appCenterParams.orgName+"/apps",
 		headers: headers,
 		rejectUnauthorized: false
 	}
@@ -80,14 +185,7 @@ var getOrgAppsV2 = function () {
 
 				var lowerTest = myApps[i].display_name.toLowerCase();
 
-				if (lowerTest.includes("lscu") ||
-					lowerTest.includes("forward") || 
-						lowerTest.includes("nuvision") || 
-						lowerTest.includes("ps") || 
-						lowerTest.includes("cardguard") || 
-						lowerTest.includes("freedom") || 
-						lowerTest.includes("community") ||
-						lowerTest.includes("bankfund")
+				if (lowerTest.includes("horizon")
 				){
 
 					appNamePK = appNamePK.replace(/[^a-zA-Z0-9]/g, " ");
@@ -127,11 +225,11 @@ var updateAppNameV1 = function (appName, newAppName) {
 	var headers = {
 		'Content-Type': 'application/json',
 		'Accept': 'application/json',
-		'X-API-Token': params2.xApiToken
+		'X-API-Token': appCenterParams.xApiToken
 	}
 
 	var options = {
-		url: "https://api.appcenter.ms/v0.1/apps/"+params2.orgName+"/"+appName,
+		url: "https://api.appcenter.ms/v0.1/apps/"+appCenterParams.orgName+"/"+appName,
 		headers: headers,
 		rejectUnauthorized: false,
 		json: true,
