@@ -85,9 +85,6 @@ router.get('/deleteHockeyApps', function (req, res){
 
 var deleteAllApps = function (hockeyApps) {
 
-	//var appTitle = hockeyApps[1].title;
-	//console.log('trying to delete ' + appTitle);
-
 	var listOfRequests = [];
 
 	for (var i = 0; i < hockeyApps.length; i++){
@@ -115,13 +112,6 @@ var deleteAllApps = function (hockeyApps) {
 			} else {
 				
 				console.log(httpResponse.statusCode + ' ' + httpResponse.statusMessage + ' ' + 'delete failed: ' + body);
-	
-				// if (err == undefined || err == null){
-				// 	var errObj = JSON.parse(body);
-				// 	console.log('error: ' + errObj.code + ' ' + errObj.message); 
-				// } else {
-				// 	console.log('error: ' + err);
-				// }
 
 			}
 	
@@ -142,7 +132,7 @@ var deleteAllApps = function (hockeyApps) {
 // App Center Stuff
 
 var appCenterParams = {
-	xApiToken: '[APP_CENTER_API_TOKEN]',
+	xApiToken: '[APP_CENTER_TOKEN]',
 	orgName: '[APP_CENTER_ORG_NAME]'
 }
 
@@ -177,6 +167,8 @@ var getOrgAppsV2 = function () {
 
 			var myApps = JSON.parse(body);
 
+			var listOfRequests = [];
+
 			console.log('apps: ' + myApps.length);
 			for (var i = 0; i < myApps.length; i++){
 
@@ -185,8 +177,8 @@ var getOrgAppsV2 = function () {
 
 				var lowerTest = myApps[i].display_name.toLowerCase();
 
-				if (lowerTest.includes("horizon")
-				){
+				// if (lowerTest.includes("horizon")
+				// ){
 
 					appNamePK = appNamePK.replace(/[^a-zA-Z0-9]/g, " ");
 					appNamePK = appNamePK.trim();
@@ -194,13 +186,18 @@ var getOrgAppsV2 = function () {
 	 
 					appNamePK = appNamePK + "-" + myApps[i].os;
 	
-					console.log('old: ' +appName+ ", new: " +appNamePK);
-	
-					updateAppNameV1(appName, appNamePK);
+					// console.log('old: ' +appName+ ", new: " +appNamePK);
 
-				}
+					if (appName.toLowerCase() !== appNamePK.toLowerCase() && myApps[i].origin !== 'hockeyapp'){
+						listOfRequests.push(updateAppNameV1(appName, appNamePK));
+					}
+
+				// }
 
 			}
+
+			Q.all(listOfRequests);
+
 		} else {
 			if (err == undefined || err == null){
 				var errObj = JSON.parse(body);
@@ -238,7 +235,7 @@ var updateAppNameV1 = function (appName, newAppName) {
 		}
 	}
 
-	request.patch(options, function (err, httpResponse, body) {
+	return request.patch(options, function (err, httpResponse, body) {
 
 		//console.log('updateAppName result: ' + httpResponse.statusCode);
 		
@@ -283,7 +280,8 @@ var getOrgAppsV1 = function () {
 	console.log('getOrgApps');
 
 	var params = {
-		xApiToken: '1243fea9ebe3527f5ee7609c0ebee920953b10cb'
+		xApiToken: '[APP_CENTER_API_TOKEN]',
+		orgName: '[APP_CENTER_ORG_NAME]'
 	}
 
 	var headers = {
@@ -293,7 +291,7 @@ var getOrgAppsV1 = function () {
 	}
 	
 	var options = {
-		url: "https://api.appcenter.ms/v0.1/orgs/Jeff_Org1/apps",
+		url: "https://api.appcenter.ms/v0.1/orgs/"+params.orgName+"/apps",
 		headers: headers,
 		rejectUnauthorized: false
 	}
@@ -362,21 +360,6 @@ app.use('/api', router);
 // =============================================================================
 app.listen(port);
 console.log('Magic happens on port ' + port);
-
-// Global Variables
-// var X_API_TOKEN = '1243fea9ebe3527f5ee7609c0ebee920953b10cb';
-// TODO pass Organization Name and App Name parameters into function? Or Hardcoded globals?
-// var APP_NAME = 'app1';
-// var RELEASE_ID = '3'; // Manually increment for testing?
-// var FILE_LOCATION = '/Users/jeffrey.tansey/repos/playground/ionic/ionic3/jeff_org1_app1_003.apk';
-
-// var upload = function (params) {
-// 	if (appExists(params.appName)){
-// 		stepOne(params);
-// 	} else {
-// 		createNewApp(params);
-// 	}
-// }
 
 var upload = function (params) {
 
